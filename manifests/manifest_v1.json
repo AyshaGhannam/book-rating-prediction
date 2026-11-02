@@ -1,0 +1,17 @@
+{
+  "dataset": "UCSD Book Graph - Goodreads interactions",
+  "filename": "goodreads_interactions.csv",
+  "source_url": "https://mcauleylab.ucsd.edu/public_datasets/gdrive/goodreads/goodreads_interactions.csv",
+  "version": "v1",
+  "format": "CSV",
+  "ingestion_mode": "batch",
+  "refresh_strategy": "Fixed snapshot; new versions stored separately",
+  "local_size_bytes": 4318621741,
+  "local_sha256": "A204BCD79E3DEC594B3D8DA6CBFF68598D121C087FF38E7A05589C019EC830EB",
+  "storage_account": "bookrating60308393",
+  "container": "raw",
+  "blob_path": "goodreads/v1/goodreads_interactions.csv",
+  "upload_date": "2026-11-02",
+  "azure_displayed_size": "4.02 GiB",
+  "azure_sha256_verification": "pending"
+}
