@@ -1,4 +1,29 @@
 # book-rating-prediction
+## Project goal and hypothesis
+
+This project predicts the 1–5 star rating a reader would give a book.
+We hypothesize that a Random Forest using reader and book rating
+histories will achieve a lower test MAE than a baseline that predicts
+the book's average training rating. For unseen books, the baseline
+uses the overall training average.
+
+Phase 1 prepares and checks the data. Model training and evaluation
+are planned for a later phase.
+
+## Dataset and architecture
+
+We use the Goodreads interactions dataset from the UCSD Book Graph.
+The source file is `goodreads_interactions.csv`. A rating of 0 means
+no explicit rating was given, so those rows are excluded from the
+prediction dataset.
+
+Pipeline: Goodreads CSV → Azure raw storage → Databricks validation
+and cleaning → Snappy Parquet in Azure processed storage → Unity
+Catalog table → EDA and feature preparation.
+
+Aysha completed ingestion checks, cleaning, table registration, and
+EDA. Nour will use the cleaned table to prepare the splits and
+features and demonstrate the automated job.
 ### Phase 1 data preparation results
 
 The Goodreads v1 source contained 228,648,342 interactions. The cleaning
