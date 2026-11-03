@@ -20,3 +20,35 @@ existed; the file path, size, and modification time stayed the same.
 The cleaning rerun reused the published output and report. A separate
 missing-column test rejected the bad input and left the published
 files unchanged.
+### How to run the data preparation notebooks
+
+1. In the course Databricks workspace, attach the notebooks to the
+   course lab cluster. Confirm you can access the project storage
+   and the `dsai3202_databricks.proj_bookrating` schema.
+2. Run [`04_verify_ingestion_rerun`](notebooks/04_verify_ingestion_rerun.py)
+   to check that the existing Goodreads v1 CSV is left in place.
+   This check assumes the raw CSV has already been uploaded.
+3. Run [`01_clean_goodreads`](notebooks/01_clean_goodreads.py) from top
+   to bottom. The notebook validates the raw data, keeps explicit
+   ratings from 1 to 5, and publishes or reuses the cleaned table.
+4. Run [`03_eda_goodreads`](notebooks/03_eda_goodreads.py) after the
+   cleaned table is available. It reads the published table and
+   does not depend on the feature notebook.
+
+### Exploratory data analysis
+
+The full cleaned dataset contains 104,551,549 explicit ratings
+from 816,371 readers across 2,325,541 books. The mean rating was
+3.939 stars, and 69.83% of ratings were 4 or 5 stars.
+
+The median reader had 55 ratings, while the median book had 4.
+About 51.34% of books and 8.09% of readers had fewer than five
+ratings. An average based on a short rating history can be
+unstable, so the planned model uses counts alongside averages.
+
+The Pearson correlation between log(1 + book rating count) and
+average book rating was 0.0219, indicating little linear
+association on that scale. These are descriptive results from
+the full dataset. Model features will use training ratings only,
+and each training row's own rating will be excluded from its
+history features.
