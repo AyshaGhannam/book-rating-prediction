@@ -75,5 +75,15 @@ The Pearson correlation between log(1 + book rating count) and
 average book rating was 0.0219, indicating little linear
 association on that scale. These are descriptive results from
 the full dataset. Model features will use training ratings only,
+
+## AI Use
+
+| Contributor | AI tool | What I asked | What it returned | What I changed or verified |
+| --- | --- | --- | --- | --- |
+| Aysha Ghannam | ChatGPT | Help writing and debugging the PySpark and SQL cleaning code. | Drafted data validation, duplicate checks, rating filters, Parquet export, and table registration code. Suggested a fix for the unsupported write mode. | I applied the fix and ran the notebook in Databricks. I verified that the output contained 104,551,549 ratings and that rerunning reused the existing data and report. |
+| Aysha Ghannam | ChatGPT | Help writing a missing-column test and checking the raw ingestion rerun guard. | Drafted the validation test and a check that compares raw file metadata before and after skipping the upload. | I verified that the test rejected the input missing `rating` and left the published files unchanged. The raw CSV’s path, size, and modification time also stayed unchanged. |
+| Aysha Ghannam | ChatGPT | Help writing the exploratory data analysis (EDA) code. | Drafted code for rating distributions, reader and book activity, correlation, and storage measurements. | I ran the analysis on the full cleaned dataset and checked the outputs. The 88.65% size reduction reflects both filtering and the change in file format. |
+
+
 and each training row's own rating will be excluded from its
 history features.
