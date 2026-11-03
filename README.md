@@ -74,7 +74,7 @@ unstable, so the planned model uses counts alongside averages.
 The Pearson correlation between log(1 + book rating count) and
 average book rating was 0.0219, indicating little linear
 association on that scale. These are descriptive results from
-the full dataset. Model features will use training ratings only,
+the full dataset. Model features will use training ratings only, and each training row's own rating will be excluded from its history features.
 
 ## AI Use
 
