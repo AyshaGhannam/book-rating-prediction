@@ -1,7 +1,7 @@
 # Book Rating Prediction
 
 **Course:** DSAI3202 — Phase 1  
-**Team:** Aysha Ghannam and Nour Ben Ayed
+**Team:** Aysha Ghannam(60308393) and Nour Ben Ayed(60305269)
 
 ## Project goal and hypothesis
 
