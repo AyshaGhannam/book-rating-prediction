@@ -1,0 +1,51 @@
+{
+  "name": "proj-bookrating-phase1",
+  "email_notifications": {
+    "no_alert_for_skipped_runs": false
+  },
+  "webhook_notifications": {},
+  "timeout_seconds": 0,
+  "max_concurrent_runs": 1,
+  "tasks": [
+    {
+      "task_key": "clean",
+      "run_if": "ALL_SUCCESS",
+      "notebook_task": {
+        "notebook_path": "/Workspace/Users/60308393@udst.edu.qa/proj-bookrating/01_clean_goodreads",
+        "source": "WORKSPACE"
+      },
+      "existing_cluster_id": "1001-053011-i0x88zy8",
+      "timeout_seconds": 0,
+      "email_notifications": {},
+      "webhook_notifications": {},
+      "disabled": false
+    },
+    {
+      "task_key": "features",
+      "depends_on": [
+        {
+          "task_key": "clean"
+        }
+      ],
+      "run_if": "ALL_SUCCESS",
+      "notebook_task": {
+        "notebook_path": "/Workspace/Users/60308393@udst.edu.qa/proj-bookrating/02_prepare_features",
+        "source": "WORKSPACE"
+      },
+      "existing_cluster_id": "1001-053011-i0x88zy8",
+      "timeout_seconds": 0,
+      "email_notifications": {},
+      "webhook_notifications": {},
+      "disabled": false
+    }
+  ],
+  "queue": {
+    "enabled": true
+  },
+  "parameters": [
+    {
+      "name": "input_path",
+      "default": "abfss://raw@bookrating60308393.dfs.core.windows.net/goodreads/v1/goodreads_interactions.csv"
+    }
+  ]
+}
