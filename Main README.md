@@ -254,10 +254,32 @@ Stop the lab cluster when neither teammate is using it. Keep the raw snapshot, p
 
 ### Contributions
 
-| Member | Work |
-|---|---|
-| **Aysha Ghannam** | Project storage, raw upload and manifest, ingestion rerun check, cleaning and validation, Parquet publication, cleaned table registration, EDA and storage measurements, the `input_path` widget used in the failure test |
-| **Nour Ben Ayed** | Reproducible splits, four training-only features and their validation, feature publication and table registration, Databricks job setup, and the four job tests (success, rerun, controlled failure, recovery) |
+#### Aysha Ghannam: ingestion, cleaning and EDA
+
+| Area | Work | Files |
+|---|---|---|
+| Storage and ingestion | Set up storage account `bookrating60308393` with `raw`, `processed` and `curated` containers. Downloaded the Goodreads CSV, uploaded it to `raw/goodreads/v1/`, and verified the upload by comparing the SHA-256 of the original file with a copy downloaded back from Azure. | [`manifests/manifest_v1.json`](manifests/manifest_v1.json) |
+| Rerun guard | Checked that repeating ingestion finds exactly one raw file, skips the upload, and leaves its path, size and modification time unchanged. | [`notebooks/04_verify_ingestion_rerun.py`](notebooks/04_verify_ingestion_rerun.py) |
+| Cleaning and validation | Checked the column names, converted types safely with `try_cast`, and checked IDs, ratings and the 0/1 indicator fields. Checked repeated reader-book pairs, excluded the 124,096,793 unrated rows, and reconciled the row counts (228,648,342 input, 104,551,549 saved). Defined the checks that stop publication. | [`notebooks/01_clean_goodreads (1).py`](notebooks/01_clean_goodreads%20%281%29.py) |
+| Publication and catalog | Wrote the cleaned ratings as Snappy Parquet, verified the saved row count and column types, registered `bookrating_ratings_v1` in Unity Catalog, added table and column descriptions, and saved a JSON cleaning report for each run. | Same notebook |
+| Failure test | Added a missing-`rating` test inside the notebook. Added the `input_path` widget, which the job uses for the controlled failure run. | Same notebook |
+| EDA and measurements | Analysed rating distribution, reader and book activity, short-history shares, and the correlation between book rating count and average rating on the full cleaned dataset. Measured the raw CSV against the cleaned Parquet size (4.319 GB to 0.490 GB, 88.65% smaller). | [`notebooks/03_eda_goodreads.py`](notebooks/03_eda_goodreads.py) |
+| Documentation | Combined both members' work into the README. | `README.md` |
+
+#### Nour Ben Ayed: splits, features and automation
+
+| Area | Work | Files |
+|---|---|---|
+| Reproducible splits | Built the hash split of `user_id` and `book_id` into 100 buckets (0-79 train, 80-89 validation, 90-99 test). Checked that the split counts add up to 104,551,549 and that no reader-book pair appears in more than one split. | [`notebooks/02_prepare_features.py`](notebooks/02_prepare_features.py) |
+| Features | Built `reader_avg_rating`, `reader_rating_count`, `book_avg_rating` and `book_rating_count` from training ratings only. Removed each training row's own rating from its features, and defined the fallback for readers and books with no history. | Same notebook |
+| Leakage test | Tested target exclusion and the fallbacks on a small hand-checked table with known answers before running on the full data. | Same notebook |
+| Validation and publication | Wrote features to a staging folder and checked them for missing or non-finite values, averages outside 1-5, negative counts, and lost or duplicated rows. Published only if all checks passed, replaced the old folders so reruns don't add duplicates, and registered `features_train`, `features_validation` and `features_test`. | Same notebook |
+| Automated job | Configured the Databricks job `proj-bookrating-phase1` with `features` depending on `clean`, and exported its configuration. | [`jobs/proj-booking-phase1.json`](jobs/proj-booking-phase1.json) |
+| Job tests | Ran the job four times: success, rerun, controlled failure and recovery. Created the test input without the `rating` column and used it with the `input_path` override. The failed run stopped at `clean` in 26 seconds, skipped `features` and left the published tables unchanged. | [`tests/fixture_missing_rating.csv`](tests/fixture_missing_rating.csv) |
+
+#### Shared
+
+Both members reviewed each other's outputs: the cleaned table feeds the feature notebook, and the `input_path` widget added by Aysha is what Nour used to run the controlled failure test.
 
 ### Reused code
 
