@@ -1,6 +1,6 @@
 Book Rating Prediction
 
-Course: DSAI3202 Fall 2026, Project Phase 1 Team: Aysha Ghannam (60308393) and Nour Ben Ayed (60305269) Repository: https://github.com/AyshaGhannam/book-rating-prediction (private) Submitted version: release tag phase1-submission
+Course: DSAI3202 Fall 2026, Project Phase 1 Team: Aysha Ghannam (60308393) and Nour Ben Ayed (60305269) 
 
 No credentials are stored in this repository. The dataset is stored in Azure and is not committed to Git.
 
