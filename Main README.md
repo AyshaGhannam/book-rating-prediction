@@ -1,175 +1,230 @@
-# Book Rating Prediction
+Book Rating Prediction
 
-**Course:** DSAI3202 — Phase 1  
-**Team:** Aysha Ghannam(60308393) and Nour Ben Ayed(60305269)
+Course: DSAI3202 Fall 2026, Project Phase 1 Team: Aysha Ghannam (60308393) and Nour Ben Ayed (60305269) Repository: https://github.com/AyshaGhannam/book-rating-prediction (private) Submitted version: release tag phase1-submission
 
-## Project goal and hypothesis
+No credentials are stored in this repository. The dataset is stored in Azure and is not committed to Git.
 
-This project predicts the 1–5 star rating a reader would give a book. We hypothesize that a Random Forest using reader and book rating histories will achieve a lower test mean absolute error (MAE) than a baseline that predicts the book's average training rating. For unseen books, the baseline uses the overall training average.
+1. Project and hypothesis
+Problem: predict the 1-5 star rating a reader would give a book.
+Target: rating, an explicit whole-star rating from 1 to 5.
+Baseline plan: predict the book's average training rating. For books unseen in training, predict the overall training average.
+Hypothesis: a Random Forest using reader and book rating histories will achieve a lower test mean absolute error (MAE) than the baseline.
+Approved refinements: none.
+Scope: Phase 1 builds and validates the data pipeline and features. Model training and evaluation are Phase 2.
 
-Phase 1 prepares and validates the data and features. Model training and evaluation are planned for Phase 2.
+The dataset is Goodreads (UCSD Book Graph). 
 
-## Dataset and architecture
+2. Dataset and architecture
+Source and ingestion
+Item	Detail
+Dataset	Goodreads interactions, UCSD Book Graph
+Source link	https://mcauleylab.ucsd.edu/public_datasets/gdrive/goodreads/goodreads_interactions.csv
+Format and size	CSV, 4,318,621,741 bytes (4.319 GB, shown as 4.02 GiB in Azure)
+Version	v1
+Raw schema	user_id, book_id, is_read, rating, is_reviewed
+Ingestion mode	Batch: download once, upload to the Azure raw container
+Refresh strategy	Fixed snapshot. A new release would go to a new versioned path (for example v2); v1 is never overwritten.
+Manifest	manifests/manifest_v1.json
+SHA-256	A204BCD79E3DEC594B3D8DA6CBFF68598D121C087FF38E7A05589C019EC830EB (the original and the copy downloaded back from Azure matched)
 
-We use the Goodreads interactions dataset from the UCSD Book Graph. The source file is `goodreads_interactions.csv`. A rating of 0 means no explicit rating was given, so those interactions are excluded from the prediction dataset.
+Repeat ingestion. notebooks/04_verify_ingestion_rerun.py finds exactly one raw file, checks its size against the manifest, skips the upload, and asserts that path, size and modification time are unchanged. Output: evidence/ingestion_rerun.txt.
 
-**Pipeline:** Goodreads CSV → Azure raw storage → Databricks validation and cleaning → Snappy Parquet in Azure processed storage → Unity Catalog cleaned ratings table. The cleaned table feeds exploratory data analysis and feature preparation. The feature notebook saves the train, validation, and test outputs in Azure curated storage and registers them in Unity Catalog.
+A rating of 0 means the reader gave no explicit rating, so those rows are excluded from the prediction dataset.
 
-## Team contributions
+Storage layout
+Layer	Location (storage account bookrating60308393)	Contents
+Raw	raw container, goodreads/v1/goodreads_interactions.csv	Original CSV, never modified
+Processed	processed container, goodreads/v1/_staging/ratings_a539f0c69fe247f690d2860544c8a9c0/	Cleaned ratings, 33 Snappy Parquet files
+Reports	processed container, goodreads/v1/run_reports/	One JSON cleaning report per run
+Curated	curated container, goodreads/v1/features/{train,validation,test}/	Feature outputs
+Architecture
+upload with rerun guard
+Goodreads CSV
+ADLS Gen2: raw
+Databricks job task: clean
+ADLS Gen2: processedParquet
+Unity Catalog:bookrating_ratings_v1
+Databricks job task: features
+ADLS Gen2: curated
+Unity Catalog:features_train,features_validation,features_test
+EDA notebook
+Azure service	Role
+Azure Data Lake Storage Gen2	Raw, processed and curated storage
+Azure Databricks	Compute for cleaning, features and EDA; the job proj-bookrating-phase1 runs clean then features
+Unity Catalog	Catalog of the cleaned table and the three feature tables
+Catalog and lineage
 
-| Contributor | Phase 1 work |
-|---|---|
-| **Aysha Ghannam** | Set up project storage, uploaded the raw dataset, documented the source in the manifest, and checked that the ingestion guard left the existing raw file unchanged. Cleaned and validated the ratings, published the Parquet output, registered the cleaned table, and completed EDA and storage measurements. Added the `input_path` widget used in the automated failure test. |
-| **Nour Ben Ayed** | Created reproducible train, validation, and test splits. Built and validated the four training-only features, published the feature outputs, and registered the three feature tables. Configured the Databricks job and tested successful execution, rerun, controlled failure, and recovery. |
+Lineage: raw CSV -> processed Parquet -> bookrating_ratings_v1 -> features_train, features_validation, features_test.
 
-## Aysha Ghannam — Ingestion, cleaning, and EDA
+Cleaned table: dsai3202_databricks.proj_bookrating.bookrating_ratings_v1, one row per reader-book pair. Table and column descriptions are saved in Unity Catalog by notebook 01.
 
-### Data preparation results
+Column	Type	Description
+user_id	bigint	Reader ID; with book_id, the logical unique key
+book_id	bigint	Book ID; with user_id, the logical unique key
+is_read	int	Source read indicator, 0 or 1; kept for reference
+rating	int	Explicit rating 1-5; the prediction target
+is_reviewed	int	Source review indicator, 0 or 1; kept for reference
 
-| Measure | Result |
-|---|---:|
-| Raw interactions | 228,648,342 |
-| Unrated interactions excluded | 124,096,793 |
-| Explicit ratings saved | 104,551,549 |
-| Invalid field values found | 0 |
-| Repeated reader–book pairs found | 0 |
+The key is logical, not enforced by the table; uniqueness is checked on every run.
 
-The cleaned table is `dsai3202_databricks.proj_bookrating.bookrating_ratings_v1`. It contains one row per reader–book pair. The `rating` column contains explicit ratings from 1 to 5 and is the prediction target.
-
-The raw CSV occupied 4.319 GB. The cleaned output occupied 0.490 GB across 33 Snappy-compressed Parquet files, an 88.65% raw-to-clean size reduction. This reflects both the removal of unrated rows and the change in file format.
-
-### Ingestion and cleaning checks
-
-- The ingestion guard found the existing Goodreads v1 CSV and skipped the upload. The file path, size, and modification time stayed unchanged. See [ingestion rerun evidence](evidence/ingestion_rerun.txt).
-- The cleaning rerun reused the published data and report. The saved output still contained 104,551,549 ratings, with the expected column names and types.
-- A separate notebook-level test rejected input missing `rating` and left the published files unchanged.
-
-### Exploratory data analysis
-
-The full cleaned dataset contains 104,551,549 explicit ratings from 816,371 readers across 2,325,541 books. The mean rating was 3.939 stars, and 69.83% of ratings were 4 or 5 stars.
-
-The approximate median was 55 ratings per reader and 4 ratings per book. About 51.34% of books and 8.09% of readers had fewer than five ratings. An average based on a short history can be unstable, so the planned model uses rating counts alongside averages.
-
-The Pearson correlation between `log(1 + book rating count)` and average book rating was 0.0219, indicating little linear association on that scale. These results describe the full cleaned dataset. The model features are computed from training ratings only.
-
-### How to run Aysha's notebooks
-
-1. Open the `dsai3202-databricks` course workspace. Attach the notebooks to the course lab cluster and confirm access to project storage and the `dsai3202_databricks.proj_bookrating` schema.
-2. Run [`04_verify_ingestion_rerun`](notebooks/04_verify_ingestion_rerun.py) to check that the existing Goodreads v1 CSV is left in place. This check assumes that the raw CSV is already uploaded.
-3. Run [`01_clean_goodreads`](notebooks/01_clean_goodreads%20%281%29.py) from top to bottom with the default `input_path`. The notebook validates the raw data, keeps ratings from 1 to 5, and publishes or reuses the cleaned table.
-4. Run [`03_eda_goodreads`](notebooks/03_eda_goodreads.py) after the cleaned table is available. It reads the cleaned table independently of the feature notebook.
-
-## Nour Ben Ayed — Splits, features, and automated job
-
-### Reproducible splits
-
-The feature notebook reads Aysha's cleaned ratings table and hashes `user_id` and `book_id` into 100 buckets. Buckets 0–79 are used for training, 80–89 for validation, and 90–99 for testing. The same reader–book pair is assigned to the same split on a rerun.
-
-| Split | Rows |
-|---|---:|
-| Train | 83,638,178 |
-| Validation | 10,457,550 |
-| Test | 10,455,821 |
-| **Total** | **104,551,549** |
-
-The split counts add up to the cleaned input count, and no reader–book pair appeared in more than one split.
-
-### Feature definitions and leakage prevention
-
-All four features are derived from the training split.
-
-| Feature | Type | Definition |
-|---|---|---|
-| `reader_avg_rating` | double | Average rating from the reader's eligible training history. |
-| `reader_rating_count` | long | Number of ratings in the reader's eligible training history. |
-| `book_avg_rating` | double | Average rating from the book's eligible training history. |
-| `book_rating_count` | long | Number of ratings in the book's eligible training history. |
-
-For a training row, the notebook subtracts the row's own rating from the reader and book sums and subtracts 1 from their counts before computing the averages. This prevents the target from being included in its own features. Validation and test rows use the complete training aggregates.
-
-If removing a training row leaves no reader or book history, the corresponding count stays at 0 and the average falls back to `(S - rating) / (N - 1)`, where `S` is the sum of all training ratings and `N` is the number of training rows. This excludes the row's own rating from the fallback too. For validation and test rows with no corresponding training history, the fallback is the full training average `S / N`, with a count of 0. At prediction time, the same full training aggregates and unseen-history fallback can be used.
-
-The output keeps `user_id`, `book_id`, `rating` as the target, and `split` alongside the four feature columns.
-
-### Feature validation and publication
-
-Nour tested target exclusion on a small example. Before publishing, the notebook checks that:
-
-- Features have no missing or non-finite values.
-- Average ratings are between 1 and 5, and counts are nonnegative.
-- Split counts match expectations and no rows are lost or duplicated.
-
-The notebook writes the feature outputs to staging and validates them before replacing the published folders. A failure before publication leaves the previous outputs in place. A normal rerun replaces the existing feature files rather than appending duplicates.
-
-### Published feature tables
-
-All three tables are in `dsai3202_databricks.proj_bookrating`. The storage path prefix is `abfss://curated@bookrating60308393.dfs.core.windows.net/goodreads/v1/features/`.
-
-| Table | Folder under the path prefix |
-|---|---|
-| `features_train` | `train/` |
-| `features_validation` | `validation/` |
-| `features_test` | `test/` |
-
-### Automated job and test results
-
-The Databricks job is `proj-bookrating-phase1` (ID `741628860534238`). The `features` task depends on `clean` and runs only after `clean` succeeds.
-
-| Test | Run ID | Duration | Observed result |
-|---|---|---|---|
-| Successful run | `692763854509075` | 9m 35s | Both tasks succeeded. |
-| Rerun | `79041621458263` | 9m 30s | Both tasks succeeded, counts matched, and no duplicate rows were added. |
-| Missing `rating` column | `993624055488619` | 26s | `clean` rejected the input before publication. `features` was skipped, and the published tables stayed unchanged. |
-| Normal run after failure | `34636616976155` | 9m 34s | Both tasks succeeded and reported the expected counts. |
-
-For the controlled failure, Nour overrode the `input_path` parameter for that run and pointed it to a separate copy of [`fixture_missing_rating.csv`](tests/fixture_missing_rating.csv) accessible to the job. The recovery run used the normal Goodreads input again.
-
-### How to run the job
-
-1. In `dsai3202-databricks`, start the course lab cluster configured for the job, `dsai3202-lab5-60305269`.
-2. Open **Jobs & Pipelines → proj-bookrating-phase1 → Run now**. Keep the default `input_path` for a normal run.
-3. After both tasks succeed, verify the published row counts:
-
-```sql
+3. Run the pipeline
+Prerequisites
+Access to the dsai3202-databricks workspace and to the dsai3202_databricks.proj_bookrating schema.
+A cluster on Databricks Runtime 18 LTS (the job used two workers, 4 cores and 16 GB each). Everything used (PySpark, Spark SQL) comes with the runtime, so there is no separate dependency file.
+Read and write access to storage account bookrating60308393 (containers raw, processed, curated).
+The raw CSV uploaded to raw/goodreads/v1/. To set up from scratch: create the three containers, download the CSV from the source link, upload it, and compare its SHA-256 with the manifest.
+Files
+File	Purpose
+notebooks/01_clean_goodreads (1).py	Validate, clean, publish and register the ratings
+notebooks/02_prepare_features.py	Splits, features, validation, publication
+notebooks/03_eda_goodreads.py	Exploratory analysis and storage sizes
+notebooks/04_verify_ingestion_rerun.py	Raw-file rerun check
+jobs/proj-booking-phase1.json	Exported job configuration for proj-bookrating-phase1
+tests/fixture_missing_rating.csv	Test input without the rating column
+Run the automated job
+Import the notebooks into the workspace. Create the job from the exported JSON (Jobs & Pipelines, create from JSON) and set the notebook paths and existing_cluster_id to your workspace and cluster.
+Start the cluster, open the job proj-bookrating-phase1 and click Run now. Keep the default input_path (the raw v1 CSV). The features task runs only after clean succeeds.
+Check the published counts:
+sql
 REFRESH TABLE dsai3202_databricks.proj_bookrating.features_train;
 REFRESH TABLE dsai3202_databricks.proj_bookrating.features_validation;
 REFRESH TABLE dsai3202_databricks.proj_bookrating.features_test;
 
-SELECT 'train' AS split, COUNT(*) AS n
-FROM dsai3202_databricks.proj_bookrating.features_train
-UNION ALL
-SELECT 'validation', COUNT(*)
-FROM dsai3202_databricks.proj_bookrating.features_validation
-UNION ALL
-SELECT 'test', COUNT(*)
-FROM dsai3202_databricks.proj_bookrating.features_test;
-```
+SELECT 'train' AS split, COUNT(*) AS n FROM dsai3202_databricks.proj_bookrating.features_train
+UNION ALL SELECT 'validation', COUNT(*) FROM dsai3202_databricks.proj_bookrating.features_validation
+UNION ALL SELECT 'test', COUNT(*) FROM dsai3202_databricks.proj_bookrating.features_test;
 
-The expected counts are 83,638,178 for training, 10,457,550 for validation, and 10,455,821 for testing. To reproduce the controlled failure, override `input_path` for one run with the full Azure path to the separate missing-rating fixture.
+Expected: 83,638,178 (train), 10,457,550 (validation), 10,455,821 (test).
 
-### Resource use and cleanup
+Run the notebooks manually
 
-The normal job took about 9.5 minutes: roughly 6.5 minutes for cleaning and 3 minutes for feature preparation. It ran on Databricks Runtime 18 LTS with two workers, each with 4 cores and 16 GB of memory.
+Run 01_clean_goodreads first, then 02_prepare_features or 03_eda_goodreads (EDA does not need the feature tables). 04_verify_ingestion_rerun can be run at any time. See also notebooks/README.md.
 
-Checking the staged feature files before publishing adds work to each run, but lets validation catch problems before the published folders are replaced. After collecting run evidence, stop the lab cluster when neither teammate is using it. Retain the raw snapshot, published outputs, and run evidence.
+Controlled failure test
 
-### Nour's files and reused code
+Run the job once with input_path overridden to the full Azure path of a separate copy of tests/fixture_missing_rating.csv. Use the default input_path again for normal runs.
 
-- [Feature notebook](notebooks/02_prepare_features.py)
-- [Exported job configuration](jobs/proj-booking-phase1.json)
-- [Missing-rating fixture](tests/fixture_missing_rating.csv)
+4. Results and features
+Row accounting
+Measure	Result
+Raw interactions	228,648,342
+Unrated interactions excluded (rating 0)	124,096,793
+Explicit ratings saved	104,551,549
+Invalid field values	0
+Repeated reader-book pairs	0
 
-Nour reported no reused code in her part.
+228,648,342 - 124,096,793 = 104,551,549. The only excluded rows are the unrated ones. A cleaning report for each run is saved to processed/goodreads/v1/run_reports/.
 
-## AI Use
+Quality rules
 
-| Contributor | AI tool | What I asked | What it returned | What I changed or verified |
-|---|---|---|---|---|
-| Aysha Ghannam | ChatGPT | Help writing and debugging the PySpark and SQL cleaning code. | Drafted validation, duplicate checks, rating filters, Parquet export, and table registration code. Suggested a fix for the unsupported write mode. | Applied the fix and ran the notebook in Databricks. Verified 104,551,549 cleaned ratings and confirmed that the rerun reused the existing data and report. |
-| Aysha Ghannam | ChatGPT | Help writing a missing-column test and checking the raw ingestion rerun guard. | Drafted the validation test and a check comparing raw file metadata before and after skipping the upload. | Verified that the test rejected input missing `rating` and left the published files unchanged. Confirmed that the raw file's path, size, and modification time stayed unchanged. |
-| Aysha Ghannam | ChatGPT | Help writing the exploratory data analysis code. | Drafted code for rating distributions, reader and book activity, correlation, and storage measurements. | Ran the analysis on the full cleaned dataset and checked the outputs. Interpreted the 88.65% reduction as the combined effect of filtering and changing the file format. |
-| Aysha Ghannam | ChatGPT | Help adding a configurable input path for the failure test. | Suggested an `input_path` widget that defaults to the Goodreads CSV. | Added the widget so the job could use a separate CSV for the controlled failure. |
-| Aysha Ghannam | ChatGPT | Help combining both contributors' README sections and checking the training fallback. | Organized the shared README, clarified the fallback from the feature code, and identified filename mismatches in links. | Used the combined draft to document each contributor's work separately and describe the fallback implemented in the feature notebook. |
-| Nour Ben Ayed | Claude | Help planning Phase 1 and writing the split and feature code. | Drafted the hash split and four training-only features, with each training row's own rating removed from its history features. | Ran the notebook in Databricks, verified the split totals and absence of overlap, and tested target exclusion on a small example. |
-| Nour Ben Ayed | Claude | Help writing feature checks, staging, publication, and table registration. | Drafted checks for missing and non-finite values, rating ranges, nonnegative counts, and row totals, plus staging and table registration steps. | Ran the checks, found zero bad rows, and verified the counts in all three published tables. |
-| Nour Ben Ayed | Claude | Help setting up the job and testing failure using Aysha's `input_path` widget. | Suggested job setup steps, the parameter override, and a CSV fixture without `rating`. | Ran the job four times and verified the successful run, unchanged rerun counts, skipped feature task on bad input, and successful recovery. |
+Order: read raw -> check columns -> convert types with try_cast (bad values become null and are counted as invalid) -> check values -> check duplicates -> filter to ratings 1-5 -> write Parquet -> verify -> register table -> write report.
+
+Publication stops (the notebook raises an error) if:
+
+the columns are not exactly user_id, book_id, is_read, rating, is_reviewed;
+any user_id or book_id is null or negative, any rating is null or outside 0-5, or is_read or is_reviewed is not 0 or 1;
+any reader-book pair is repeated, or there are no explicit ratings;
+input rows do not equal explicit plus unrated rows;
+the saved row count or column types differ from the expected ones, or the table already points to a different output.
+
+For features, 02_prepare_features writes to a staging folder and publishes only if there are no missing, non-finite or out-of-range feature values (averages 1-5, counts at least 0), no lost or duplicated rows, and split counts match. A failure leaves the previous published outputs in place.
+
+Runs
+
+Job proj-bookrating-phase1 (ID 741628860534238). Screenshots: evidence/job_runs/.
+
+Test	Run ID	Duration	Result
+Successful run	692763854509075	9m 35s	Both tasks succeeded
+Rerun	79041621458263	9m 30s	Succeeded; counts matched, no duplicate rows
+Controlled failure (no rating column)	993624055488619	26s	clean rejected the input; features skipped; published tables unchanged
+Normal run after failure	34636616976155	9m 34s	Succeeded with the expected counts
+
+Other checks: the cleaning rerun reused the published data and report (still 104,551,549 rows, same column types), and notebook 01 also tests a missing-rating input and confirms the published files are unchanged.
+
+Splits
+
+02_prepare_features hashes user_id and book_id into 100 buckets: 0-79 train, 80-89 validation, 90-99 test. The same pair always lands in the same split. No sampling is used anywhere in Phase 1.
+
+Split	Rows
+Train	83,638,178
+Validation	10,457,550
+Test	10,455,821
+Total	104,551,549
+
+No pair appears in more than one split.
+
+Output paths
+
+Feature outputs are in abfss://curated@bookrating60308393.dfs.core.windows.net/goodreads/v1/features/ under train/, validation/ and test/, registered as features_train, features_validation and features_test. A rerun replaces these folders instead of appending.
+
+Exploratory analysis
+
+EDA (notebooks/03_eda_goodreads.py) ran on the full cleaned dataset, not a sample.
+
+Finding	Value
+Ratings, readers, books	104,551,549; 816,371; 2,325,541
+Mean rating	3.939
+Share of 4 and 5 star ratings	69.83%
+Median ratings per reader / per book	55 / 4
+Books / readers with fewer than 5 ratings	51.34% / 8.09%
+Correlation of log(1 + book rating count) with average book rating	0.0219
+
+Risks and what they mean for modeling.
+
+Ratings are skewed high, so a constant near 4 is already a strong baseline. The model must be judged against the baseline MAE.
+Activity is very uneven: the median book has 4 ratings. Averages from short histories are unstable, so every average is paired with a count.
+Many validation and test rows will involve books or readers with little or no training history, so the features define a fallback for unseen history.
+Popularity (rating count) shows little linear relation to average rating, so counts are kept as separate features.
+Features
+
+All features come from the training split of bookrating_ratings_v1.
+
+Feature	Type	Definition	Available at prediction time
+reader_avg_rating	double	Average of the reader's eligible training ratings	Yes, from stored training aggregates
+reader_rating_count	long	Number of those ratings	Yes
+book_avg_rating	double	Average of the book's eligible training ratings	Yes
+book_rating_count	long	Number of those ratings	Yes
+
+The feature tables also keep user_id, book_id, rating (target) and split. No feature selection was used.
+
+Fallbacks. With S the sum and N the number of training ratings: for a training row, the row's own rating is removed from its reader and book sums and counts; if no history remains the count is 0 and the average is (S - rating) / (N - 1). Validation and test rows use the full training aggregates; with no history the average is S / N and the count is 0. Prediction uses the same rule.
+
+Leakage risks and mitigations.
+
+Risk	Mitigation
+A training row's rating is inside its own averages	Removed from its features; tested on a small hand-checked example in notebook 02
+Validation or test ratings influence features	Aggregates come from training rows only
+The same pair appears in two splits	Deterministic hash split, checked: no overlap
+The fallback average includes the row's own rating	The training fallback subtracts the row's rating
+Unseen readers and books	Count is 0 with the training mean, so the model can recognize them
+
+Limitation. The hash split is random, not time-based, so it does not measure performance on future ratings.
+
+Next (Phase 2). Train the Random Forest on features_train, tune on validation, and compare MAE with the baseline on test.
+
+5. Resource use and contributions
+Justified choice: Snappy Parquet instead of CSV
+
+Cleaned ratings are stored as Snappy Parquet. The raw CSV is 4.319 GB and the cleaned output is 0.490 GB in 33 files (88.65% smaller). This compares different row sets and formats, so it reflects both dropping 124,096,793 unrated rows and the columnar format, not compression alone. The smaller, columnar table is what cleaning, EDA and features read. The whole job takes about 9.5 minutes on two 4-core, 16 GB workers (about 6.5 minutes cleaning, 3 minutes features). Validating staged features before publishing adds time to each run; it is kept because the failed run showed it protects the published tables.
+
+Cleanup
+
+Stop the lab cluster when neither teammate is using it. Keep the raw snapshot, published outputs and run evidence.
+
+Contributions
+Member	Work
+Aysha Ghannam	Project storage, raw upload and manifest, ingestion rerun check, cleaning and validation, Parquet publication, cleaned table registration, EDA and storage measurements, the input_path widget used in the failure test
+Nour Ben Ayed	Reproducible splits, four training-only features and their validation, feature publication and table registration, Databricks job setup, and the four job tests (success, rerun, controlled failure, recovery)
+Reused code
+Aysha Ghannam: none.
+Nour Ben Ayed: none.
+6. AI use
+Contributor	AI tool	What I asked	What it returned	What I changed or verified
+Aysha Ghannam	ChatGPT	Help writing and debugging the PySpark and SQL cleaning code.	Drafted validation, duplicate checks, rating filters, Parquet export and table registration code. Suggested a fix for the unsupported write mode.	Applied the fix and ran the notebook in Databricks. Verified 104,551,549 cleaned ratings and confirmed that the rerun reused the existing data and report.
+Aysha Ghannam	ChatGPT	Help writing a missing-column test and checking the raw ingestion rerun guard.	Drafted the validation test and a check comparing raw file metadata before and after skipping the upload.	Verified that the test rejected input missing rating and left the published files unchanged. Confirmed that the raw file's path, size and modification time stayed unchanged.
+Aysha Ghannam	ChatGPT	Help writing the exploratory data analysis code.	Drafted code for rating distributions, reader and book activity, correlation and storage measurements.	Ran the analysis on the full cleaned dataset and checked the outputs. Interpreted the 88.65% reduction as the combined effect of filtering and changing the file format.
+Aysha Ghannam	ChatGPT	Help adding a configurable input path for the failure test.	Suggested an input_path widget that defaults to the Goodreads CSV.	Added the widget so the job could use a separate CSV for the controlled failure.
+Aysha Ghannam	ChatGPT	Help combining both contributors' README sections and checking the training fallback.	Organized the shared README, clarified the fallback from the feature code, and identified filename mismatches in links.	Used the combined draft to document each contributor's work separately and describe the fallback implemented in the feature notebook.
+Nour Ben Ayed	Claude	Help planning Phase 1 and writing the split and feature code.	Drafted the hash split and four training-only features, with each training row's own rating removed from its history features.	Ran the notebook in Databricks, verified the split totals and absence of overlap, and tested target exclusion on a small example.
+Nour Ben Ayed	Claude	Help writing feature checks, staging, publication and table registration.	Drafted checks for missing and non-finite values, rating ranges, nonnegative counts and row totals, plus staging and table registration steps.	Ran the checks, found zero bad rows and verified the counts in all three published tables.
+Nour Ben Ayed	Claude	Help setting up the job and testing failure using Aysha's input_path widget.	Suggested job setup steps, the parameter override and a CSV fixture without rating.	Ran the job four times and verified the successful run, unchanged rerun counts, skipped feature task on bad input and successful recovery.
