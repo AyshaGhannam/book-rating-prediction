@@ -1,0 +1,65 @@
+{
+  "invalid": [
+    {
+      "case": "not JSON",
+      "http": 424,
+      "model_status": "400",
+      "passed": true
+    },
+    {
+      "case": "no inputs key",
+      "http": 424,
+      "model_status": "400",
+      "passed": true
+    },
+    {
+      "case": "empty inputs list",
+      "http": 424,
+      "model_status": "400",
+      "passed": true
+    },
+    {
+      "case": "missing book_avg_rating",
+      "http": 424,
+      "model_status": "400",
+      "passed": true
+    },
+    {
+      "case": "reader_avg_rating = 7 (out of range)",
+      "http": 424,
+      "model_status": "400",
+      "passed": true
+    },
+    {
+      "case": "book_avg_rating = 0.5 (out of range)",
+      "http": 424,
+      "model_status": "400",
+      "passed": true
+    },
+    {
+      "case": "reader_rating_count = -1",
+      "http": 424,
+      "model_status": "400",
+      "passed": true
+    },
+    {
+      "case": "book_rating_count = 2.5 (not whole)",
+      "http": 424,
+      "model_status": "400",
+      "passed": true
+    },
+    {
+      "case": "reader_avg_rating = 'high' (text)",
+      "http": 424,
+      "model_status": "400",
+      "passed": true
+    }
+  ],
+  "performance": {
+    "calls": 50,
+    "errors": 0,
+    "median_ms": 85.23804202559404,
+    "p95_ms": 172.22670902265236,
+    "max_ms": 178.33275004522875
+  }
+}
