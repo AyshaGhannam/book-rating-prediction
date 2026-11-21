@@ -9,7 +9,7 @@
 | Deployment | `rf-deploy-v1` |
 | Instance | `Standard_DS2_v2`, 1 instance, Qatar Central |
 | Auth | Key |
-| Commit | TODO: paste commit SHA |
+
 
 ## Files
 
